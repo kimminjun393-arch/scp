@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCP 탈출: 제19기지 v7.0</title>
+    <title>SCP 탈출: 제19기지 v7.1</title>
     <style>
         :root {
             --terminal-green: #33ff33;
@@ -248,7 +248,7 @@
         text += `</div>`;
 
         updateScreen(text, [
-            { text: "메인 화면으로 돌아가기", action: startIntro }
+            { text: "현재 게임으로 돌아가기", action: main_hub } // 버그 픽스: 도감 확인 후 상태 유지
         ]);
     }
 
@@ -256,19 +256,25 @@
         unlockEnding(endingId);
         document.getElementById("hp-display").innerText = "0";
         document.getElementById("hp-display").className = "danger";
-        updateScreen(`<span class="danger">💀 <b>GAME OVER</b> 💀</span><br><br>${reason}`, [{ text: "처음부터 다시 시도", action: startIntro }]);
+        updateScreen(`<span class="danger">💀 <b>GAME OVER</b> 💀</span><br><br>${reason}`, [{ text: "처음부터 다시 시도", action: startGame }]);
     }
     
     function gameWin(endingId, endingText) {
         unlockEnding(endingId);
-        updateScreen(`🎉 <b>탈출 시퀀스 완료</b> 🎉<br><br>${endingText}`, [{ text: "다른 분기 찾아보기", action: startIntro }]);
+        updateScreen(`🎉 <b>탈출 시퀀스 완료</b> 🎉<br><br>${endingText}`, [{ text: "다른 분기 찾아보기", action: startGame }]);
     }
 
     // ==========================================
-    // 0. 프롤로그
+    // 0. 프롤로그 및 교차로 (분리)
     // ==========================================
-    function startIntro() {
+    function startGame() {
+        // 게임을 처음 시작할 때만 상태를 초기화합니다.
         gameState = { hp: 100, inventory: [], flags: [], condition: "정상" };
+        main_hub();
+    }
+
+    function main_hub() {
+        // 상태 초기화 없이 교차로 화면만 띄웁니다.
         const text = "⚠️ <b>[긴급 경보] 기지 다중 격리 파기.</b><br><br>당신은 D-9341입니다. 감방 밖으로 나오자 핏자국이 흥건한 중앙 교차로가 나옵니다. 어디로 가시겠습니까?";
         updateScreen(text, [
             { text: "1. [사무 및 방송 구역] (아이템 및 통신 시설)", action: admin_hub },
@@ -286,7 +292,7 @@
             { text: "의료실(Medical Bay)로 간다.", action: med_bay },
             { text: "중앙 방송실(Intercom Room)로 간다.", action: intercom_room },
             { text: "보안실로 간다.", action: security_room },
-            { text: "교차로로 돌아간다.", action: startIntro }
+            { text: "교차로로 돌아간다.", action: main_hub } // 버그 픽스: startGame 대신 main_hub 호출
         ]);
     }
 
@@ -339,7 +345,7 @@
             { text: "발전기실", action: generator_room },
             { text: "창고", action: storage_room },
             { text: "하수구", action: sewer_room },
-            { text: "교차로로 올라간다", action: startIntro }
+            { text: "교차로로 올라간다", action: main_hub } // 버그 픽스
         ]);
     }
 
@@ -383,7 +389,7 @@
         updateScreen("📍 <b>저위험군 격리구역</b><br><br>거대한 방폭문들이 보입니다.", [
             { text: "SCP-914 격리실로 간다", action: scp914_room },
             { text: "유독가스 복도로 진입한다", action: gas_hallway },
-            { text: "교차로로 돌아간다", action: startIntro }
+            { text: "교차로로 돌아간다", action: main_hub } // 버그 픽스
         ]);
     }
 
@@ -476,7 +482,7 @@
         }
     }
 
-    window.onload = startIntro;
+    window.onload = startGame; // 초기 시작을 startGame으로 변경
 </script>
 
 </body>
