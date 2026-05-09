@@ -3,37 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCP 탈출 텍스트 어드벤처</title>
+    <title>SCP 탈출: 제19기지</title>
     <style>
+        :root {
+            --terminal-green: #33ff33;
+            --terminal-dark: #0c0c0c;
+            --terminal-bg: #000;
+        }
+
         body {
-            background-color: #0c0c0c;
-            color: #33ff33; /* 해커/터미널 느낌의 초록색 글씨 */
+            background-color: var(--terminal-dark);
+            color: var(--terminal-green);
             font-family: 'Courier New', Courier, monospace;
             display: flex;
             justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
             padding: 20px;
+            box-sizing: border-box;
         }
+
         #game-container {
             width: 100%;
             max-width: 700px;
-            background-color: #000;
-            border: 1px solid #33ff33;
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--terminal-green);
             padding: 20px;
             border-radius: 5px;
-            box-shadow: 0 0 10px #33ff33;
+            box-shadow: 0 0 15px rgba(51, 255, 51, 0.5);
+            display: flex;
+            flex-direction: column;
+            position: relative; /* 알림창 위치 설정용 */
         }
+
+        /* --- 상태 및 인벤토리 창 --- */
+        #status-panel {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--terminal-green);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .status-item b {
+            color: #fff;
+        }
+
+        /* --- 스토리 및 선택지 창 --- */
         #story-text {
             font-size: 16px;
             line-height: 1.6;
             margin-bottom: 20px;
-            min-height: 150px;
+            min-height: 180px; /* 이야기 길이가 달라도 버튼 위치 고정 */
         }
+
+        #story-text b {
+            color: #fff;
+        }
+
         .choice-btn {
             display: block;
             width: 100%;
             background-color: #111;
-            color: #33ff33;
-            border: 1px solid #33ff33;
+            color: var(--terminal-green);
+            border: 1px solid var(--terminal-green);
             padding: 15px;
             margin-bottom: 10px;
             font-size: 16px;
@@ -41,27 +76,89 @@
             cursor: pointer;
             text-align: left;
             transition: 0.2s;
+            box-sizing: border-box;
         }
+
         .choice-btn:hover {
-            background-color: #33ff33;
+            background-color: var(--terminal-green);
             color: #000;
+            font-weight: bold;
+        }
+
+        /* --- 아이템 획득 알림창 --- */
+        #toast-notification {
+            visibility: hidden; /* 평소엔 숨김 */
+            min-width: 250px;
+            background-color: var(--terminal-green);
+            color: #000;
+            text-align: center;
+            border-radius: 2px;
+            padding: 16px;
+            position: absolute;
+            z-index: 1;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        #toast-notification.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+
+        /* 애니메이션 효과 */
+        @keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+
+        @keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 0; opacity: 0;}
         }
     </style>
 </head>
 <body>
 
 <div id="game-container">
+    <div id="status-panel">
+        <div class="status-item">STATUS: <b id="hp-display">100</b> HP</div>
+        <div class="status-item">INV: <b id="inv-display">비어 있음</b></div>
+    </div>
+
     <div id="story-text">시스템 부팅 중...</div>
+
     <div id="choices-area"></div>
+
+    <div id="toast-notification"></div>
 </div>
 
 <script>
-    // 플레이어 데이터
-    let inventory = [];
+    // --- 게임 데이터 ---
+    let gameState = {
+        hp: 100,
+        inventory: []
+    };
 
-    // 화면 업데이트 함수
+    // --- 유틸리티 함수 ---
+
+    // 화면 업데이트 (상태창 + 스토리 + 선택지)
     function updateScreen(text, choices) {
+        // 1. 상태창 업데이트
+        document.getElementById("hp-display").innerText = gameState.hp;
+        const invDisplay = document.getElementById("inv-display");
+        if (gameState.inventory.length > 0) {
+            invDisplay.innerText = gameState.inventory.join(", ");
+        } else {
+            invDisplay.innerText = "비어 있음";
+        }
+
+        // 2. 스토리 업데이트
         document.getElementById("story-text").innerHTML = text;
+
+        // 3. 선택지 업데이트
         const choicesArea = document.getElementById("choices-area");
         choicesArea.innerHTML = ""; // 기존 버튼 지우기
 
@@ -74,9 +171,24 @@
         });
     }
 
-    // --- 게임 시나리오 함수들 ---
+    // 아이템 획득 알림 (Toast)
+    function showNotification(message) {
+        const toast = document.getElementById("toast-notification");
+        toast.innerText = message;
+        toast.className = "show";
+        // 3초 뒤에 사라짐
+        setTimeout(function(){ 
+            toast.className = toast.className.replace("show", ""); 
+        }, 3000);
+    }
+
+    // --- 게임 시나리오 및 로직 ---
+
     function startIntro() {
-        inventory = []; // 게임 시작 시 인벤토리 초기화
+        // 게임 데이터 초기화
+        gameState.hp = 100;
+        gameState.inventory = [];
+
         const text = "⚠️ <b>[시스템 경고] 제19기지 다중 격리 파기 발생.</b><br><br>당신은 D계급 인원입니다. 철문이 부서지는 소리가 들렸고, 감방 문이 열려 있습니다. 살아남으려면 시설을 빠져나가야 합니다.";
         updateScreen(text, [
             { text: "감방 밖 복도로 나간다.", action: roomDClass }
@@ -95,13 +207,14 @@
         let text = "📍 <b>현재 위치: 관리실</b><br><br>";
         let choices = [{ text: "복도로 돌아간다.", action: roomDClass }];
 
-        if (!inventory.includes("3등급 키카드")) {
+        // 키카드가 없을 때만 획득 선택지 추가
+        if (!gameState.inventory.includes("3등급 키카드")) {
             text += "책상 위에 죽은 연구원의 신분증이 떨어져 있습니다.";
             choices.unshift({ 
                 text: "신분증을 챙긴다.", 
                 action: () => {
-                    inventory.push("3등급 키카드");
-                    alert("[+] '3등급 키카드'를 획득했습니다!");
+                    gameState.inventory.push("3등급 키카드");
+                    showNotification("[+] '3등급 키카드'를 획득했습니다!"); // 게임 내 알림
                     roomAdmin(); // 화면 새로고침
                 }
             });
@@ -123,25 +236,34 @@
         const text = "📍 <b>현재 위치: 무기고 앞 복도</b><br><br>방을 무사히 빠져나왔습니다.<br>하지만 앞쪽에서 검은 망토를 두르고 새 부리 가면을 쓴 자, <b>[SCP-049]</b>가 다가옵니다.<br><i>'당신에게서... 역병의 냄새가 나는군요. 치료해 드리겠습니다.'</i>";
         updateScreen(text, [
             { text: "1. 근처에 있는 쇠파이프를 다른 곳으로 집어 던진다.", action: roomGateA },
-            { text: "2. 바닥에 납작 엎드려 죽은 척한다.", action: () => gameOver("SCP-049가 당신을 내려다보며 손을 뻗습니다. 그의 손이 닿자마자 싸늘하게 식어갔습니다...") }
+            { text: "2. 바닥에 납작 엎드려 죽은 척한다.", action: () => {
+                gameState.hp = 0; // 체력 0
+                gameOver("SCP-049가 당신을 내려다보며 손을 뻗습니다. 그의 손이 닿자마자 싸늘하게 식어갔습니다...")
+            }}
         ]);
     }
 
     function roomGateA() {
         let text = "📍 <b>현재 위치: 게이트 A (출구)</b><br><br>쇠파이프 소리에 SCP-049가 고개를 돌린 틈을 타 도망쳤습니다!<br>거대한 방폭문이 탈출을 막고 있습니다. 카드 리더기가 붉은 빛을 냅니다.";
         
-        if (inventory.includes("3등급 키카드")) {
+        if (gameState.inventory.includes("3등급 키카드")) {
             updateScreen(text, [
                 { text: "인벤토리에서 '3등급 키카드'를 꺼내 리더기에 긁는다.", action: gameWin }
             ]);
         } else {
             updateScreen(text, [
-                { text: "문을 강제로 열어본다.", action: () => gameOver("단말기에 [3등급 권한 필요]라고 적혀 있습니다. 문을 열 수 없습니다.<br>어디선가 끔찍한 괴성이 들려옵니다... 결국 시설 안에 갇히고 말았습니다.") }
+                { text: "문을 강제로 열어본다.", action: () => {
+                    gameState.hp = 0;
+                    gameOver("단말기에 [3등급 권한 필요]라고 적혀 있습니다. 문을 열 수 없습니다.<br>어디선가 끔찍한 괴성이 들려옵니다... 결국 시설 안에 갇히고 말았습니다.")
+                }}
             ]);
         }
     }
 
     function gameOver(reason) {
+        // 체력이 소모되어 죽는 경우를 위해 체력창 업데이트
+        document.getElementById("hp-display").innerText = gameState.hp;
+        
         const text = `💀 <b>게임 오버</b> 💀<br><br>${reason}`;
         updateScreen(text, [
             { text: "처음부터 다시 시작하기", action: startIntro }
