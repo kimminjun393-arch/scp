@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCP 탈출: 제19기지 v5.0</title>
+    <title>SCP 탈출: 제19기지 v6.0</title>
     <style>
         :root {
             --terminal-green: #33ff33;
@@ -50,6 +50,7 @@
         .status-item b { color: #fff; }
         .danger { color: #ff3333; font-weight: bold; }
         .safe { color: #33ccff; font-weight: bold; }
+        .anomaly { color: #cc33ff; font-weight: bold; }
 
         #story-text {
             font-size: 16px;
@@ -122,25 +123,23 @@
             <div class="status-item">INV: <b id="inv-display">비어 있음</b></div>
         </div>
     </div>
-    <div id="story-text">시스템 부팅...</div>
+    <div id="story-text">시스템 연결 중...</div>
     <div id="choices-area"></div>
     <div id="toast-notification"></div>
 </div>
 
 <script>
-    // --- 게임 시스템 ---
-    let gameState = { 
-        hp: 100, 
-        inventory: [], 
-        flags: [],
-        condition: "정상" // 정상, 출혈, 감염 등
-    };
+    // --- 게임 상태 ---
+    let gameState = { hp: 100, inventory: [], flags: [], condition: "정상" };
 
     function updateScreen(text, choices) {
         document.getElementById("hp-display").innerText = gameState.hp;
         document.getElementById("hp-display").className = gameState.hp <= 30 ? "danger" : "";
         document.getElementById("condition-display").innerText = gameState.condition;
-        document.getElementById("condition-display").className = gameState.condition !== "정상" ? "danger" : "safe";
+        
+        if (gameState.condition === "변형됨") document.getElementById("condition-display").className = "anomaly";
+        else document.getElementById("condition-display").className = gameState.condition !== "정상" ? "danger" : "safe";
+        
         document.getElementById("inv-display").innerText = gameState.inventory.length > 0 ? gameState.inventory.join(", ") : "비어 있음";
         
         document.getElementById("story-text").innerHTML = text;
@@ -177,243 +176,216 @@
     function removeItem(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
 
     // ==========================================
-    // 0. 프롤로그 및 허브
+    // 0. 프롤로그
     // ==========================================
-
     function startIntro() {
         gameState = { hp: 100, inventory: [], flags: [], condition: "정상" };
-        const text = "⚠️ <b>[시스템 에러] 기지 다중 격리 파기 발생.</b><br><br>당신은 D-9341. 감방 문이 열렸습니다. 밖은 이미 지옥입니다.<br>중앙 교차로에 도착했습니다. 어디로 향하시겠습니까?";
+        const text = "⚠️ <b>[긴급 경보] 기지 다중 격리 파기.</b><br><br>당신은 D-9341입니다. 감방 밖으로 나오자 핏자국이 흥건한 중앙 교차로가 나옵니다. 어디로 가시겠습니까?";
         updateScreen(text, [
-            { text: "1. [저위험군 격리구역] (보안 문 통과 정석 루트)", action: lcz_hub },
-            { text: "2. [사무 및 의료 구역] (아이템 및 회복)", action: admin_hub },
-            { text: "3. [지하 유지보수 터널] (전력 제어 및 어둠)", action: maintenance_hub }
+            { text: "1. [사무 및 방송 구역] (아이템 및 통신 시설)", action: admin_hub },
+            { text: "2. [지하 터널] (전력 제어 및 하수구)", action: maintenance_hub },
+            { text: "3. [저위험군 격리구역] (SCP-914 및 정석 루트)", action: lcz_hub }
         ]);
     }
 
     // ==========================================
-    // 1. 사무 및 의료 구역 (Admin & Medical)
+    // 1. 사무 및 방송 구역
     // ==========================================
-
     function admin_hub() {
-        updateScreen("📍 <b>사무 구역 복도</b><br><br>비상등만 켜진 고요한 복도입니다.", [
-            { text: "의료실(Medical Bay)로 들어간다.", action: med_bay },
-            { text: "보안실(Security Room)로 들어간다.", action: security_room },
-            { text: "중앙 교차로로 돌아간다.", action: startIntro }
+        updateScreen("📍 <b>사무 구역 복도</b><br><br>곳곳에 서류가 흩날립니다.", [
+            { text: "의료실(Medical Bay)로 간다.", action: med_bay },
+            { text: "중앙 방송실(Intercom Room)로 간다.", action: intercom_room },
+            { text: "보안실로 간다.", action: security_room },
+            { text: "교차로로 돌아간다.", action: startIntro }
         ]);
     }
 
     function med_bay() {
-        let text = "📍 <b>의료실</b><br><br>의료 기기들이 부서져 있습니다.";
+        let text = "📍 <b>의료실</b><br><br>구급 용품이 널려있습니다.";
         let choices = [{ text: "복도로 나간다.", action: admin_hub }];
-
-        if (!hasFlag("got_med_items")) {
-            text += "<br>선반 위에 <b>[만병통치약 SCP-500]</b> 한 알과 <b>[1등급 키카드]</b>가 보입니다.";
-            choices.unshift({ text: "아이템을 모두 챙긴다.", action: () => {
-                setFlag("got_med_items"); addItem("SCP-500"); addItem("1등급 키카드"); med_bay();
-            }});
-        } else if (hasItem("SCP-500")) {
-            choices.unshift({ text: "SCP-500을 복용한다 (체력/상태 완전 회복)", action: () => {
-                removeItem("SCP-500"); gameState.hp = 100; gameState.condition = "정상";
-                showNotification("모든 상처와 질병이 깨끗이 나았습니다!"); med_bay();
-            }});
+        if (!hasFlag("got_med")) {
+            text += "<br><b>[1등급 키카드]</b>와 <b>[구급상자]</b>를 발견했습니다.";
+            choices.unshift({ text: "아이템을 챙긴다.", action: () => { setFlag("got_med"); addItem("1등급 키카드"); addItem("구급상자"); med_bay(); }});
         }
         updateScreen(text, choices);
     }
 
     function security_room() {
-        let text = "📍 <b>보안실</b><br><br>모니터들이 깨져 있습니다. 구석에 <b>[SCP-049]</b>가 죽은 경비병을 수술하고 있습니다.";
-        let choices = [{ text: "조용히 복도로 빠져나간다.", action: admin_hub }];
-
-        if (!hasFlag("got_sec_items")) {
-            text += "<br>벽에 걸린 <b>[가스 마스크]</b>와 책상 위 <b>[건전지]</b>가 보입니다. 놈의 시선을 끌지 않고 가져올 수 있을까요?";
-            choices.unshift({ text: "위험을 무릅쓰고 아이템을 훔친다.", action: () => {
-                if(Math.random() < 0.3) {
-                    if(takeDamage(40, "감염")) return gameOver("SCP-049에게 들켰습니다. 그의 손이 닿자 치명적인 역병에 감염되었습니다.");
-                } else {
-                    setFlag("got_sec_items"); addItem("가스 마스크"); addItem("건전지");
-                }
+        let text = "📍 <b>보안실</b><br><br><b>[SCP-049]</b>가 시체를 뒤지고 있습니다.";
+        let choices = [{ text: "살금살금 빠져나간다.", action: admin_hub }];
+        if (!hasFlag("got_sec")) {
+            text += "<br>벽에 <b>[가스 마스크]</b>와 <b>[건전지]</b>가 있습니다.";
+            choices.unshift({ text: "훔친다.", action: () => {
+                if(Math.random() < 0.3) { if(takeDamage(50, "감염")) return gameOver("역병의사에게 들켜 치명적인 감염에 걸려 사망했습니다."); }
+                else { setFlag("got_sec"); addItem("가스 마스크"); addItem("건전지"); }
                 security_room();
             }});
         }
         updateScreen(text, choices);
     }
 
-    // ==========================================
-    // 2. 지하 유지보수 터널 (Maintenance)
-    // ==========================================
+    function intercom_room() {
+        let text = "📍 <b>중앙 방송실</b><br><br>기지 전체, 심지어 O5 사령부와도 통신할 수 있는 콘솔이 있습니다.";
+        let choices = [{ text: "복도로 나간다.", action: admin_hub }];
+        
+        if (hasItem("마스터(Omni) 키카드")) {
+            text += "<br>마스터 카드가 있으면 사령부에 직접 협상 통신을 보낼 수 있습니다!";
+            choices.unshift({ text: "마스터 카드를 꽂고 통신을 시도한다 (히든 엔딩)", action: () => {
+                gameWin("<i>'치직... D계급 인원이 어떻게 그 채널을... 알겠다. 귀관의 생존 능력과 획득한 정보 가치를 인정한다.'</i><br>얼마 후 특수부대가 당신을 정중하게 모시러 왔습니다. 당신은 D계급에서 정식 현장 요원으로 특채되었습니다.<br><br><b>[엔딩 5: 승진 축하합니다]</b>");
+            }});
+        } else {
+            text += "<br>단말기가 [마스터 권한 필요]라는 경고를 띄웁니다.";
+        }
+        updateScreen(text, choices);
+    }
 
+    // ==========================================
+    // 2. 지하 터널 구역
+    // ==========================================
     function maintenance_hub() {
-        updateScreen("📍 <b>지하 터널</b><br><br>어둡고 습합니다. 파이프에서 증기가 새어 나옵니다.", [
-            { text: "발전기실로 향한다.", action: generator_room },
-            { text: "창고로 향한다.", action: storage_room },
-            { text: "하수구 쪽으로 간다.", action: sewer_room },
-            { text: "중앙 교차로로 올라간다.", action: startIntro }
+        updateScreen("📍 <b>지하 터널</b><br><br>습하고 어둡습니다.", [
+            { text: "발전기실", action: generator_room },
+            { text: "창고", action: storage_room },
+            { text: "하수구", action: sewer_room },
+            { text: "교차로로 올라간다", action: startIntro }
         ]);
     }
 
     function storage_room() {
-        let text = "📍 <b>지하 창고</b><br><br>먼지 쌓인 장비들이 널브러져 있습니다.";
-        let choices = [{ text: "터널로 나간다.", action: maintenance_hub }];
-
+        let text = "📍 <b>창고</b>";
+        let choices = [{ text: "나간다.", action: maintenance_hub }];
         if (!hasFlag("got_storage")) {
-            text += "<br>캐비닛 안에서 <b>[야간 투시경]</b>과 <b>[쇠지렛대]</b>를 발견했습니다!";
-            choices.unshift({ text: "챙긴다.", action: () => {
-                setFlag("got_storage"); addItem("야간 투시경"); addItem("쇠지렛대"); storage_room();
-            }});
+            text += "<br><b>[야간 투시경]</b>과 <b>[쇠지렛대]</b>를 획득했습니다.";
+            choices.unshift({ text: "챙긴다.", action: () => { setFlag("got_storage"); addItem("야간 투시경"); addItem("쇠지렛대"); storage_room(); }});
         }
         updateScreen(text, choices);
     }
 
     function generator_room() {
-        let text = "📍 <b>메인 발전기실</b><br><br>";
-        let choices = [{ text: "터널로 돌아간다.", action: maintenance_hub }];
-
+        let text = "📍 <b>발전기실</b><br><br>전력 스위치가 있습니다.";
+        let choices = [{ text: "돌아간다.", action: maintenance_hub }];
         if (!hasFlag("power_off")) {
-            text += "시설 메인 전력이 <b style='color:#33ff33'>[ON]</b> 상태입니다. 끄면 보안 문들이 풀리지만, 맹수들이 어둠을 틈타 활동할 것입니다.";
-            choices.unshift({ text: "메인 전력을 차단한다.", action: () => { setFlag("power_off"); showNotification("시설 전체 전력 차단됨!"); generator_room(); }});
+            text += "현재 전력: <b style='color:#33ff33'>ON</b>";
+            choices.unshift({ text: "전력을 끈다.", action: () => { setFlag("power_off"); generator_room(); }});
         } else {
-            text += "전력이 <b class='danger'>[OFF]</b> 상태입니다.";
+            text += "현재 전력: <b class='danger'>OFF</b>";
         }
         updateScreen(text, choices);
     }
 
     function sewer_room() {
-        let text = "📍 <b>하수구 배수구</b><br><br>단단한 쇠창살이 가로막고 있습니다.";
+        let text = "📍 <b>하수구</b>";
         let choices = [{ text: "돌아간다.", action: maintenance_hub }];
-
         if (hasItem("쇠지렛대") && hasFlag("power_off")) {
-            text += "<br>전력이 끊겨 전자 잠금장치가 무력화되었습니다. 쇠지렛대로 열 수 있습니다!";
-            choices.unshift({ text: "철창을 뜯고 탈출한다 (히든 엔딩)", action: () => gameWin("오수관을 타고 기지를 빠져나왔습니다.<br>아무도 당신의 행방을 모릅니다.<br><br><b>[엔딩 1: 자유의 몸]</b>") });
-        } else {
-            text += "<br>잠금장치에 전류가 흐르고 있어 열 수 없습니다.";
+            choices.unshift({ text: "철창을 뜯고 나간다 (히든 엔딩)", action: () => gameWin("아무도 모르게 하수구를 타고 산속으로 도망쳤습니다.<br><br><b>[엔딩 1: 자유의 몸]</b>") });
         }
         updateScreen(text, choices);
     }
 
     // ==========================================
-    // 3. 저위험군 격리구역 (LCZ)
+    // 3. 저위험군 (LCZ) & SCP-914
     // ==========================================
-
     function lcz_hub() {
-        let text = "📍 <b>저위험군 격리구역</b><br><br>";
-        if(hasFlag("power_off")) text += "<span class='warning'>[전력 꺼짐] 칠흑같이 어둡습니다.</span><br><br>";
-        
-        updateScreen(text + "여러 격리실이 이어져 있습니다.", [
-            { text: "SCP-914 격리실 (아이템 업그레이드)", action: scp914_room },
-            { text: "가스 유출 복도로 진입", action: gas_hallway },
-            { text: "중앙 교차로로 돌아간다.", action: startIntro }
+        updateScreen("📍 <b>저위험군 격리구역</b><br><br>거대한 방폭문들이 보입니다.", [
+            { text: "SCP-914 격리실로 간다", action: scp914_room },
+            { text: "유독가스 복도로 진입한다", action: gas_hallway },
+            { text: "교차로로 돌아간다", action: startIntro }
         ]);
     }
 
     function scp914_room() {
-        let text = "📍 <b>SCP-914 (만능 태엽장치)</b><br><br>기계에 아이템을 넣고 'Fine(고운)' 설정으로 돌릴 수 있습니다.";
-        let choices = [{ text: "복도로 나간다.", action: lcz_hub }];
+        let text = "📍 <b>SCP-914</b><br><br>기계에 사물(또는 생물)을 넣고 돌릴 수 있습니다.";
+        let choices = [{ text: "나간다.", action: lcz_hub }];
 
-        // 업그레이드 로직
-        if(hasItem("1등급 키카드")) choices.unshift({ text: "[1등급 키카드] 돌리기", action: () => { removeItem("1등급 키카드"); addItem("2등급 키카드"); scp914_room(); }});
-        if(hasItem("2등급 키카드")) choices.unshift({ text: "[2등급 키카드] 돌리기", action: () => { removeItem("2등급 키카드"); addItem("3등급 키카드"); scp914_room(); }});
-        if(hasItem("3등급 키카드")) choices.unshift({ text: "[3등급 키카드] 돌리기", action: () => { removeItem("3등급 키카드"); addItem("4등급 키카드"); scp914_room(); }});
-        if(hasItem("4등급 키카드")) choices.unshift({ text: "[4등급 키카드] 돌리기", action: () => { removeItem("4등급 키카드"); addItem("마스터(Omni) 키카드"); scp914_room(); }});
+        if(hasItem("1등급 키카드")) choices.unshift({ text: "1등급 카드를 돌린다", action: () => { removeItem("1등급 키카드"); addItem("2등급 키카드"); scp914_room(); }});
+        if(hasItem("2등급 키카드")) choices.unshift({ text: "2등급 카드를 돌린다", action: () => { removeItem("2등급 키카드"); addItem("3등급 키카드"); scp914_room(); }});
+        if(hasItem("3등급 키카드")) choices.unshift({ text: "3등급 카드를 돌린다", action: () => { removeItem("3등급 키카드"); addItem("4등급 키카드"); scp914_room(); }});
+        if(hasItem("4등급 키카드")) choices.unshift({ text: "4등급 카드를 돌린다", action: () => { removeItem("4등급 키카드"); addItem("마스터(Omni) 키카드"); scp914_room(); }});
         
+        choices.push({ text: "⚠️ 입력 부스에 '내 몸'을 직접 집어넣고 '매우 고움(Very Fine)'으로 작동시킨다. (광기의 선택)", action: () => {
+            gameState.condition = "변형됨";
+            gameWin("엄청난 굉음과 함께 당신의 육체 구조가 재배열되었습니다.<br>벽을 뚫고 지나가는 능력과 초월적인 힘을 얻었지만, 이성을 잃고 괴물이 되었습니다.<br>결국 재단 기동대에게 제압되어 새로운 SCP 개체로 영원히 격리되었습니다.<br><br><b>[엔딩 6: SCP-9341-KR (초월적 존재)]</b>");
+        }});
+
         updateScreen(text, choices);
     }
 
     function gas_hallway() {
-        let text = "📍 <b>유독가스 복도</b><br><br>파이프가 터져 노란색 맹독 가스가 가득 차 있습니다. 이 복도를 통과해야 중위험군(HCZ)으로 갈 수 있습니다.";
-        let choices = [{ text: "저위험군으로 돌아간다.", action: lcz_hub }];
-
-        if (hasItem("가스 마스크")) {
-            choices.unshift({ text: "가스 마스크를 쓰고 안전하게 통과한다.", action: hcz_hub });
-        } else {
-            choices.unshift({ text: "숨을 참고 억지로 통과한다.", action: () => {
-                if(takeDamage(50, "출혈")) return gameOver("가스를 마시고 폐가 망가져 피를 토하며 쓰러졌습니다.");
-                hcz_hub();
-            }});
-        }
-        updateScreen(text, choices);
+        let choices = [{ text: "돌아간다.", action: lcz_hub }];
+        if (hasItem("가스 마스크")) choices.unshift({ text: "마스크를 쓰고 중위험군(HCZ)으로 간다.", action: hcz_hub });
+        else choices.unshift({ text: "숨을 참고 뛴다.", action: () => { if(!takeDamage(40, "출혈")) hcz_hub(); }});
+        updateScreen("📍 <b>유독가스 복도</b><br><br>맹독 가스가 가득합니다.", choices);
     }
 
     // ==========================================
-    // 4. 중위험군 격리구역 (HCZ)
+    // 4. 중위험군 (HCZ)
     // ==========================================
-
     function hcz_hub() {
-        let text = "📍 <b>중위험군 격리구역</b><br><br>공기가 무겁고 피비린내가 진동합니다.";
-        let choices = [
-            { text: "어두운 서버실로 향한다. (SCP-096 구역)", action: scp096_room },
-            { text: "지하 사육장 터널로 향한다. (SCP-939 구역)", action: scp939_tunnel },
-            { text: "저위험군 복도로 돌아간다.", action: gas_hallway }
-        ];
-        updateScreen(text, choices);
+        updateScreen("📍 <b>중위험군 격리구역</b><br><br>바닥에 끈적한 검은 부식 액체가 고여있습니다. 벽에 불길한 <b>[검은 구멍(포켓 디멘션)]</b>이 열려 있습니다.", [
+            { text: "어둠의 서버실 (SCP-096) 통과", action: scp096_room },
+            { text: "사육장 터널 (SCP-939) 통과", action: scp939_tunnel },
+            { text: "검은 구멍 안으로 스스로 뛰어든다. (히든 엔딩)", action: () => {
+                gameWin("지상에서 핵폭탄 카운트다운이 들리는 순간, 당신은 기지가 폭발하는 대신 차원의 틈새로 뛰어들었습니다.<br>시설 폭발에서는 살아남았지만, 당신은 영원히 썩어가는 어둠의 미로 속을 영원히 걷게 되었습니다.<br><br><b>[엔딩 7: 영원한 주머니 차원]</b>");
+            }},
+            { text: "가스 복도로 돌아간다.", action: gas_hallway }
+        ]);
     }
 
     function scp096_room() {
-        updateScreen("📍 <b>서버실</b><br><br>구석에서 창백한 괴물 <b>[SCP-096]</b>이 울고 있습니다.", [
-            { text: "얼굴을 보지 않도록 바닥만 보며 조심스럽게 지나가 출입 구역(EZ)으로 향한다.", action: ez_hub },
-            { text: "총이 떨어져 있는지 확인하려 주위를 둘러본다.", action: () => gameOver("우연히 SCP-096의 얼굴을 보고 말았습니다. 놈의 비명소리가 커지더니 순식간에 당신을 찢어버렸습니다.") }
+        updateScreen("📍 <b>서버실</b><br><br>부끄럼쟁이가 울고 있습니다.", [
+            { text: "바닥만 보며 로비(EZ)로 간다.", action: ez_hub },
+            { text: "얼굴을 본다.", action: () => gameOver("비명소리와 함께 찢겨 죽었습니다.") }
         ]);
     }
 
     function scp939_tunnel() {
-        let text = "📍 <b>사육장 터널</b><br><br>어둠 속에서 사람의 목소리를 흉내 내는 맹수 <b>[SCP-939]</b> 무리가 배회합니다. 놈들은 시력이 없지만 청각에 극도로 예민합니다.";
-        let choices = [{ text: "서버실 쪽으로 돌아간다.", action: hcz_hub }];
-
-        if (hasFlag("power_off")) {
-            if (hasItem("야간 투시경") && hasItem("건전지")) {
-                choices.unshift({ text: "야간 투시경을 켜고, 놈들을 피해 발소리를 죽여 출입 구역(EZ)으로 빠져나간다.", action: ez_hub });
-            } else {
-                choices.unshift({ text: "어둠 속을 감으로 더듬거리며 지나간다.", action: () => gameOver("어둠 속에서 무언가에 걸려 넘어지며 큰 소리를 냈습니다.<br>사방에서 SCP-939들이 달려들어 당신을 물어뜯었습니다.") });
-            }
+        let choices = [{ text: "돌아간다.", action: hcz_hub }];
+        if (hasFlag("power_off") && hasItem("야간 투시경") && hasItem("건전지")) {
+            choices.unshift({ text: "야간 투시경으로 로비(EZ)까지 무사히 통과한다.", action: ez_hub });
+        } else if (hasFlag("power_off")) {
+            choices.unshift({ text: "어둠 속을 더듬으며 걷는다.", action: () => gameOver("소리를 내어 괴물들에게 잡아먹혔습니다.") });
         } else {
-            text += "<br><br>불이 켜져 있어 당신이 움직이면 쉽게 표적이 될 것입니다. 전력을 끄면 시야가 없는 놈들을 피해갈 수 있을지도 모릅니다.";
+            choices.unshift({ text: "불 켜진 상태로 그냥 뛴다.", action: () => gameOver("밝은 곳에서 뛰는 당신을 본 괴물들이 순식간에 덮쳤습니다.") });
         }
-        updateScreen(text, choices);
+        updateScreen("📍 <b>사육장 터널</b>", choices);
     }
 
     // ==========================================
-    // 5. 출입 구역 (EZ) 및 엔딩
+    // 5. 출입 구역 (EZ)
     // ==========================================
-
     function ez_hub() {
-        updateScreen("📍 <b>출입 구역 (로비)</b><br><br><i>안내 방송: '알파 탄두 폭발까지 2분 남았습니다.'</i><br>마지막 탈출 게이트가 눈앞에 있습니다.", [
-            { text: "게이트 A (혼돈의 반란 침투지)로 간다.", action: gate_a },
-            { text: "게이트 B (재단 특수부대 거점)로 간다.", action: gate_b },
-            { text: "시간이 없다! 그 자리에 주저앉는다.", action: () => gameOver("카운트다운이 끝났습니다.<br>거대한 핵폭발이 기지 전체를 증발시켰습니다.<br><br><b>[배드 엔딩: 잿더미]</b>") }
+        updateScreen("📍 <b>로비</b><br><br>핵폭발 1분 전!", [
+            { text: "게이트 A (혼돈의 반란군)", action: gate_a },
+            { text: "게이트 B (재단 특수부대)", action: gate_b },
+            { text: "포기한다.", action: () => gameOver("기지와 함께 핵폭발로 증발했습니다.<br><br><b>[엔딩 8: 잿더미]</b>") }
         ]);
     }
 
     function gate_a() {
-        let text = "📍 <b>게이트 A</b><br><br>무장한 혼돈의 반란 요원들이 출구를 지키고 있습니다.";
         if (hasItem("마스터(Omni) 키카드") || hasItem("4등급 키카드")) {
-            gameWin("<i>'잠깐, 저 놈 손에 있는 카드를 봐. 쓸만한 가치가 있겠군.'</i><br>그들은 고등급 카드를 소지한 당신을 주요 인물로 판단하고 헬기에 태웠습니다.<br><br><b>[엔딩 2: 적의 장기말]</b>");
+            gameWin("반란군이 당신을 VIP로 대우하며 헬기에 태웁니다.<br><br><b>[엔딩 2: 적의 장기말]</b>");
         } else {
-            gameWin("<i>'D계급이군. 화물칸에 던져넣어.'</i><br>그들은 당신을 소모품으로 포획했습니다. 노예나 다름없는 신세지만, 죽진 않았습니다.<br><br><b>[엔딩 3: 혼돈의 수감자]</b>");
+            gameWin("반란군에게 노예 실험체로 납치되었습니다.<br><br><b>[엔딩 3: 혼돈의 수감자]</b>");
         }
     }
 
     function gate_b() {
-        let text = "📍 <b>게이트 B</b><br><br>재단 특수 기동대(MTF)가 생존자를 검문 중입니다.";
         if (gameState.condition === "감염" || gameState.hp < 50) {
-            gameOver("당신의 상태를 본 MTF 요원들이 총을 겨눴습니다.<br><i>'감염 의심자다. 사살해!'</i><br><br><b>[배드 엔딩: 무자비한 방역]</b>");
+            gameOver("특수부대에게 감염체로 오인받아 사살되었습니다.<br><br><b>[엔딩 9: 방역 처분]</b>");
         } else if (hasItem("마스터(Omni) 키카드")) {
-            gameWin("당신이 내민 마스터 키카드를 본 요원들이 당황하며 경례합니다.<br><i>'O5 임원 구출 확인! 신속히 헬기로 호송하라!'</i><br>당신은 재단 최고위층으로 위장하여 완벽한 호위를 받으며 탈출했습니다.<br><br><b>[진 엔딩 4: 위대한 사기극]</b>");
+            gameWin("마스터 카드를 본 요원들이 당신을 O5 임원으로 착각하여 호위 탈출시킵니다.<br><br><b>[엔딩 4: 위대한 사기극]</b>");
         } else {
-            gameOver("D계급 복장을 본 요원들이 총을 난사했습니다.<br><i>'D계급 인원 탈주 확인, 사살 완료.'</i><br><br><b>[배드 엔딩: 규정대로]</b>");
+            gameOver("D계급 복장 때문에 즉시 사살되었습니다.<br><br><b>[엔딩 10: 규정대로]</b>");
         }
     }
 
     function gameOver(reason) {
         document.getElementById("hp-display").innerText = "0";
         document.getElementById("hp-display").className = "danger";
-        updateScreen(`<span class="danger">💀 <b>GAME OVER</b> 💀</span><br><br>${reason}`, [
-            { text: "처음부터 다시 시도", action: startIntro }
-        ]);
+        updateScreen(`<span class="danger">💀 <b>GAME OVER</b> 💀</span><br><br>${reason}`, [{ text: "재도전", action: startIntro }]);
     }
-
     function gameWin(endingText) {
-        updateScreen(`🎉 <b>시설 탈출 시퀀스 완료</b> 🎉<br><br>${endingText}`, [
-            { text: "다른 엔딩 찾아보기", action: startIntro }
-        ]);
+        updateScreen(`🎉 <b>탈출 시퀀스 완료</b> 🎉<br><br>${endingText}`, [{ text: "다른 엔딩 보기", action: startIntro }]);
     }
 
     window.onload = startIntro;
