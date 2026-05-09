@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCP 탈출: 제19기지 대규모 격리 파기</title>
+    <title>SCP 탈출: 제19기지 다중 루트</title>
     <style>
         :root {
             --terminal-green: #33ff33;
@@ -31,7 +31,7 @@
             border: 1px solid var(--terminal-green);
             padding: 25px;
             border-radius: 5px;
-            box-shadow: 0 0 15px rgba(51, 255, 51, 0.4);
+            box-shadow: 0 0 20px rgba(51, 255, 51, 0.3);
             display: flex;
             flex-direction: column;
             position: relative;
@@ -58,6 +58,7 @@
 
         #story-text b { color: #fff; }
         #story-text i { color: #aaa; }
+        .warning { color: #ff9900; }
 
         .choice-btn {
             display: block;
@@ -79,6 +80,7 @@
             background-color: var(--terminal-green);
             color: #000;
             font-weight: bold;
+            padding-left: 25px; /* 호버 시 텍스트가 살짝 이동하는 연출 */
         }
 
         #toast-notification {
@@ -112,20 +114,16 @@
 <div id="game-container">
     <div id="status-panel">
         <div class="status-item">HP: <b id="hp-display">100</b> / 100</div>
-        <div class="status-item">INVENTORY: <b id="inv-display">비어 있음</b></div>
+        <div class="status-item">INV: <b id="inv-display">비어 있음</b></div>
     </div>
-    <div id="story-text">시스템 연결 중...</div>
+    <div id="story-text">시스템 부팅...</div>
     <div id="choices-area"></div>
     <div id="toast-notification"></div>
 </div>
 
 <script>
-    // --- 게임 핵심 시스템 ---
-    let gameState = {
-        hp: 100,
-        inventory: [],
-        visited: [] // 한 번 방문한 방이나 획득한 아이템을 기억합니다.
-    };
+    // --- 게임 상태 및 유틸리티 ---
+    let gameState = { hp: 100, inventory: [], flags: [] };
 
     function updateScreen(text, choices) {
         document.getElementById("hp-display").innerText = gameState.hp;
@@ -144,189 +142,242 @@
         });
     }
 
-    function showNotification(message) {
+    function showNotification(msg) {
         const toast = document.getElementById("toast-notification");
-        toast.innerText = message;
+        toast.innerText = msg;
         toast.className = "show";
         setTimeout(() => toast.className = toast.className.replace("show", ""), 3000);
     }
 
     function takeDamage(amount) {
         gameState.hp -= amount;
-        showNotification(`[경고] 체력이 ${amount} 감소했습니다!`);
-        if (gameState.hp <= 0) {
-            gameState.hp = 0;
-            return true; // 사망 판정
-        }
-        return false; // 생존
+        showNotification(`[경고] 체력 ${amount} 감소!`);
+        return gameState.hp <= 0;
     }
 
-    function hasItem(item) {
-        return gameState.inventory.includes(item);
-    }
+    function hasItem(item) { return gameState.inventory.includes(item); }
+    function hasFlag(flag) { return gameState.flags.includes(flag); }
+    function setFlag(flag) { if (!hasFlag(flag)) gameState.flags.push(flag); }
+    function addItem(item) { if (!hasItem(item)) { gameState.inventory.push(item); showNotification(`[+] ${item} 획득`); } }
+    function removeItem(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
 
-    function removeItem(item) {
-        const index = gameState.inventory.indexOf(item);
-        if (index > -1) gameState.inventory.splice(index, 1);
-    }
-
-    // --- 시나리오: 저위험군 격리구역 (Light Containment Zone) ---
+    // ==========================================
+    // 시나리오 시작 (분기점 허브)
+    // ==========================================
 
     function startIntro() {
-        gameState = { hp: 100, inventory: [], visited: [] };
-        const text = "⚠️ <b>[긴급 경보] 제19기지 다중 격리 파기 발생.</b><br><br>당신은 실험체로 쓰이는 D계급 인원 'D-9341'입니다.<br>갑작스러운 폭발음과 함께 시설 전체가 어둠에 잠겼고, 당신의 감방 문을 제어하던 전자 장치가 합선되며 문이 열렸습니다.<br>복도 너머에서는 사람들의 비명과 정체를 알 수 없는 괴성들이 들려옵니다.<br><br>살아남기 위해서는 지상으로 통하는 게이트를 찾아야 합니다.";
-        updateScreen(text, [{ text: "감방 밖 복도로 나간다.", action: lcz_corridor }]);
-    }
-
-    function lcz_corridor() {
-        let text = "📍 <b>저위험군 격리구역 - 메인 복도</b><br><br>깜빡이는 비상조명 아래, 길고 차가운 복도가 끝없이 이어져 있습니다.<br>오른쪽에는 '경비원 휴게실'이 있고, 왼쪽에는 굳게 닫힌 'SCP-914 격리실' 문이 보입니다. 직진하면 '중위험군 격리구역'으로 가는 엘리베이터입니다.";
+        gameState = { hp: 100, inventory: [], flags: [] };
+        const text = "⚠️ <b>[긴급 경보] 기지 전체 다중 격리 파기.</b><br><br>당신은 D-9341. 폭발음과 함께 감방 문이 열렸습니다. 복도로 나오니 세 갈래 길이 보입니다.<br>사이렌 소리가 귀를 찢을 듯 울립니다. 어느 길로 가야 할까요?";
         updateScreen(text, [
-            { text: "1. 경비원 휴게실을 탐색한다.", action: lcz_breakroom },
-            { text: "2. SCP-914 (태엽장치) 격리실로 간다.", action: scp914_room },
-            { text: "3. 중위험군 격리구역 엘리베이터로 간다.", action: hcz_elevator }
+            { text: "1. [저위험군 격리구역] 표지판을 따라간다. (정석 루트)", action: lcz_hub },
+            { text: "2. [사무 및 연구 구역] 통로로 진입한다. (아이템 파밍 루트)", action: admin_hub },
+            { text: "3. 어두컴컴한 [지하 유지보수 터널] 계단으로 내려간다. (위험/비밀 루트)", action: maintenance_hub }
         ]);
     }
 
-    function lcz_breakroom() {
-        let text = "📍 <b>저위험군 격리구역 - 경비원 휴게실</b><br><br>커피잔이 엎질러져 있고 의자들이 나뒹굴고 있습니다. 끔찍하게 훼손된 경비원의 시체가 구석에 기대어 있습니다.";
-        let choices = [{ text: "메인 복도로 돌아간다.", action: lcz_corridor }];
+    // ==========================================
+    // 루트 1: 사무 구역 (Admin Wing) - 정보와 아이템
+    // ==========================================
 
-        if (!gameState.visited.includes("got_level1")) {
-            text += "<br>경비원의 허리춤에 <b>[1등급 키카드]</b>가 매달려 있고, 바닥에는 <b>[구급상자]</b>가 떨어져 있습니다.";
+    function admin_hub() {
+        let text = "📍 <b>사무 구역 복도</b><br><br>연구원들과 경비병들의 시체가 널려 있습니다. 피비린내가 코를 찌릅니다.<br>오른쪽에는 '소장실'이 있고, 앞쪽은 '식당'입니다.";
+        updateScreen(text, [
+            { text: "소장실로 들어간다.", action: admin_director },
+            { text: "식당으로 간다.", action: admin_cafeteria },
+            { text: "다시 시작 지점(D계급 감방)으로 돌아간다.", action: startIntro }
+        ]);
+    }
+
+    function admin_director() {
+        let text = "📍 <b>소장실</b><br><br>고급스러운 책상 위에 각종 서류가 흩어져 있습니다.";
+        let choices = [{ text: "사무 구역 복도로 나간다.", action: admin_hub }];
+
+        if (!hasFlag("got_admin_items")) {
+            text += "<br>책상 서랍이 반쯤 열려 있고, 그 안에 <b>[4등급 키카드]</b>와 <b>[쇠지렛대(빠루)]</b>가 보입니다!";
             choices.unshift({ 
                 text: "아이템들을 챙긴다.", 
                 action: () => {
-                    gameState.inventory.push("1등급 키카드", "구급상자");
-                    gameState.visited.push("got_level1");
-                    showNotification("[+] 1등급 키카드, 구급상자 획득!");
-                    lcz_breakroom();
+                    setFlag("got_admin_items");
+                    addItem("4등급 키카드");
+                    addItem("쇠지렛대");
+                    admin_director();
                 }
             });
         }
         updateScreen(text, choices);
+    }
+
+    function admin_cafeteria() {
+        let text = "📍 <b>식당</b><br><br>뒤집힌 식탁들 사이로 검은 로브를 입은 <b>[SCP-049]</b>가 연구원의 시체를 해부하고 있습니다.<br>당신을 발견하곤 천천히 다가옵니다. <i>'역병이 가득하군...'</i>";
+        updateScreen(text, [
+            { text: "재빨리 옆문을 통해 저위험군 격리구역으로 도망친다.", action: lcz_hub },
+            { text: "탁자를 엎어 길을 막고 사무 구역 복도로 돌아간다.", action: () => {
+                if(takeDamage(20)) return gameOver("도망치는 과정에서 SCP-049의 손끝이 스쳤고, 온몸이 마비되며 쓰러졌습니다.");
+                admin_hub();
+            }}
+        ]);
+    }
+
+    // ==========================================
+    // 루트 2: 유지보수 터널 (Maintenance) - 어둠과 전력
+    // ==========================================
+
+    function maintenance_hub() {
+        let text = "📍 <b>지하 유지보수 터널</b><br><br>빛이 전혀 들어오지 않는 축축한 지하입니다. 파이프에서 물이 새는 소리만 들립니다.<br>어둠 속에서 무언가 무거운 것이 끌리는 소리가 들립니다...";
+        updateScreen(text, [
+            { text: "벽을 더듬어 메인 발전기실로 향한다.", action: generator_room },
+            { text: "하수구 철창 쪽으로 이동한다.", action: sewer_grate },
+            { text: "너무 어둡다. 계단을 다시 올라간다.", action: startIntro }
+        ]);
+    }
+
+    function generator_room() {
+        let text = "📍 <b>메인 발전기실</b><br><br>거대한 발전기들이 굉음을 내며 돌아가고 있습니다. 중앙 제어판에 '시설 메인 전력' 스위치가 있습니다.";
+        let choices = [{ text: "터널로 돌아간다.", action: maintenance_hub }];
+
+        if (!hasFlag("power_off")) {
+            text += "<br>현재 전력 상태: <b style='color:#33ff33'>[ON]</b>";
+            choices.unshift({ 
+                text: "메인 전력을 [OFF]로 내린다.", 
+                action: () => {
+                    setFlag("power_off");
+                    showNotification("시설 전체의 전력이 차단되었습니다! (보안 문 잠금 해제됨)");
+                    generator_room();
+                }
+            });
+        } else {
+            text += "<br>현재 전력 상태: <b class='danger'>[OFF]</b><br>주변이 소름 끼치도록 고요해졌습니다.";
+        }
+        updateScreen(text, choices);
+    }
+
+    function sewer_grate() {
+        let text = "📍 <b>하수구 배수구 앞</b><br><br>커다란 쇠창살이 시설 외부 하수구로 통하는 길을 막고 있습니다.";
+        let choices = [{ text: "터널로 돌아간다.", action: maintenance_hub }];
+
+        if (hasItem("쇠지렛대")) {
+            if (hasFlag("power_off")) {
+                text += "<br>전력이 차단되어 철창의 전자 잠금장치가 무력화되었습니다. 쇠지렛대로 뜯어낼 수 있을 것 같습니다!";
+                choices.unshift({ text: "쇠지렛대로 철창을 뜯고 하수구로 탈출한다. (히든 엔딩)", action: ending_sewer });
+            } else {
+                text += "<br>쇠지렛대가 있지만, 전자 잠금장치에 고압 전류가 흐르고 있어 건드리면 감전될 것입니다.";
+            }
+        } else {
+            text += "<br>철창을 맨손으로 열 수는 없습니다. 튼튼한 도구가 필요해 보입니다.";
+        }
+        updateScreen(text, choices);
+    }
+
+    // ==========================================
+    // 루트 3: 저위험군 (LCZ) & 중위험군 (HCZ) - 정석 루트
+    // ==========================================
+
+    function lcz_hub() {
+        let text = "📍 <b>저위험군 격리구역 (LCZ)</b><br><br>";
+        if (hasFlag("power_off")) {
+            text += "<span class='warning'>전력이 차단되어 비상등만 붉게 켜져 있습니다. 많은 전자문들이 열려 있습니다.</span><br><br>";
+        }
+        text += "복도 끝에 거대한 조각상 <b>[SCP-173]</b>이 보입니다. 눈을 깜빡이는 순간 목이 꺾일 것입니다.";
+        
+        updateScreen(text, [
+            { text: "시선을 고정한 채 옆에 있는 방(SCP-914)으로 숨어 들어간다.", action: scp914_room },
+            { text: "눈을 부릅뜨고 중위험군(HCZ) 검문소까지 뒷걸음질로 통과한다.", action: hcz_checkpoint }
+        ]);
     }
 
     function scp914_room() {
-        let text = "📍 <b>SCP-914 격리실 (초정밀 태엽장치)</b><br><br>방 한가운데를 차지하고 있는 거대한 톱니바퀴 기계입니다. '입력(Input)' 부스와 '출력(Output)' 부스가 있고, 가운데에는 설정 다이얼이 있습니다.";
-        let choices = [{ text: "복도로 나간다.", action: lcz_corridor }];
+        let text = "📍 <b>SCP-914 격리실</b><br><br>거대한 태엽 기계가 있습니다. 물건을 개조할 수 있습니다.";
+        let choices = [{ text: "눈치를 보며 복도로 다시 나간다.", action: lcz_hub }];
 
         if (hasItem("1등급 키카드")) {
-            text += "<br><br>인벤토리에 있는 <b>[1등급 키카드]</b>를 기계에 넣고 업그레이드할 수 있을 것 같습니다.";
-            choices.unshift({ 
-                text: "기계의 다이얼을 '고운(Fine)'에 맞추고 1등급 키카드를 작동시킨다.", 
-                action: () => {
-                    removeItem("1등급 키카드");
-                    gameState.inventory.push("3등급 키카드");
-                    showNotification("[+] 키카드가 3등급으로 업그레이드되었습니다!");
-                    scp914_room();
-                }
-            });
+            text += "<br>가진 '1등급 키카드'를 넣어볼 수 있습니다.";
+            choices.unshift({ text: "다이얼을 '고운(Fine)'에 맞추고 돌린다.", action: () => {
+                removeItem("1등급 키카드"); addItem("3등급 키카드"); scp914_room();
+            }});
+        } else if (!hasFlag("got_level1") && !hasItem("3등급 키카드") && !hasItem("4등급 키카드")) {
+            text += "<br>구석에 죽은 연구원이 <b>[1등급 키카드]</b>를 쥐고 있습니다.";
+            choices.unshift({ text: "1등급 키카드를 챙긴다.", action: () => {
+                setFlag("got_level1"); addItem("1등급 키카드"); scp914_room();
+            }});
         }
         updateScreen(text, choices);
     }
 
-    function hcz_elevator() {
-        let text = "📍 <b>중위험군 격리구역행 엘리베이터 앞</b><br><br>엘리베이터의 카드 리더기가 붉은빛을 내고 있습니다. 작동시키려면 <b>3등급 이상의 키카드</b>가 필요합니다.";
-        let choices = [{ text: "메인 복도로 돌아간다.", action: lcz_corridor }];
-
-        if (hasItem("3등급 키카드")) {
-            text += "<br>당신의 3등급 키카드로 문을 열 수 있습니다.";
-            choices.unshift({ text: "3등급 키카드를 긁고 엘리베이터에 탑승한다.", action: hcz_arrival });
-        }
-        updateScreen(text, choices);
-    }
-
-    // --- 시나리오: 중위험군 격리구역 (Heavy Containment Zone) ---
-
-    function hcz_arrival() {
-        const text = "📍 <b>중위험군 격리구역 - 진입로</b><br><br>엘리베이터 문이 열리자 역겨운 피비린내가 진동합니다. 이곳은 저위험군보다 훨씬 어둡고 공기가 무겁습니다.<br>바닥에는 검은색 부식성 액체가 군데군데 고여 있습니다. 무언가 위험한 것이 돌아다니고 있는 것이 분명합니다.";
-        updateScreen(text, [
-            { text: "어두운 서버실 쪽으로 이동한다.", action: hcz_server_room },
-            { text: "제어실 복도 쪽으로 이동한다.", action: hcz_control_corridor }
-        ]);
-    }
-
-    function hcz_server_room() {
-        let text = "📍 <b>서버실</b><br><br>수많은 서버 랙들이 윙윙거리는 소리를 내고 있습니다.<br>그때, 방 구석에서 <b>[SCP-096 (부끄럼쟁이)]</b>이 웅크린 채 끔찍한 울음소리를 내고 있는 것을 발견했습니다!<br>그것의 창백하고 비쩍 마른 몸이 부들부들 떨립니다.";
+    function hcz_checkpoint() {
+        let text = "📍 <b>중위험군 격리구역 (HCZ) 검문소</b><br><br>육중한 방폭문이 길을 막고 있습니다.";
         
-        updateScreen(text, [
-            { text: "1. 놈이 무엇을 하고 있는지 얼굴을 자세히 쳐다본다.", action: () => gameOver("당신의 시선이 SCP-096의 얼굴에 닿았습니다.<br>울음소리가 우렁찬 비명으로 바뀌었고, 놈은 눈을 가린 채 당신에게 돌진했습니다.<br>당신은 형체도 없이 찢겨나갔습니다.") },
-            { text: "2. 시선을 바닥에만 고정한 채, 뒷걸음질로 조용히 방을 빠져나간다.", action: hcz_arrival }
-        ]);
-    }
-
-    function hcz_control_corridor() {
-        let text = "📍 <b>제어실 복도</b><br><br>복도를 걷고 있는데, 갑자기 발밑의 바닥이 검게 썩어 들어가기 시작합니다.<br>벽을 뚫고 <b>[SCP-106 (늙은이)]</b>이 당신을 향해 기어나옵니다! 그것이 닿는 모든 금속이 부식되며 녹아내립니다.";
-        
-        updateScreen(text, [
-            { text: "1. 근처에 있는 환풍구로 미친듯이 기어 도망친다.", action: () => {
-                let dead = takeDamage(40);
-                if (dead) {
-                    gameOver("환풍구로 도망치려 했으나, 부상으로 속도를 내지 못해 SCP-106에게 발목을 잡혔습니다.<br>당신은 끝없는 어둠의 주머니 차원으로 끌려갔습니다.");
-                } else {
-                    hcz_ventilation();
-                }
-            }},
-            { text: "2. 그 자리에 얼어붙어 살려달라고 빈다.", action: () => gameOver("SCP-106은 당신의 애원을 듣지 않습니다. 썩어가는 손이 당신을 덮쳤고, 당신은 고통의 차원으로 끌려갔습니다.") }
-        ]);
-    }
-
-    function hcz_ventilation() {
-        let text = "📍 <b>환풍구 내부</b><br><br>숨이 턱 끝까지 차오릅니다. 방금 전의 추격전으로 온몸이 긁히고 멍들었습니다.<br>다행히 놈은 더 이상 쫓아오지 않는 것 같습니다. 환풍구 끝에 '지상 출입 구역'으로 통하는 틈이 보입니다.";
-        let choices = [{ text: "지상 출입 구역으로 뛰어내린다.", action: ez_arrival }];
-
-        if (hasItem("구급상자") && gameState.hp < 100) {
-            choices.unshift({ 
-                text: "구급상자를 사용하여 체력을 회복한다.", 
-                action: () => {
-                    removeItem("구급상자");
-                    gameState.hp = 100;
-                    showNotification("체력을 완전히 회복했습니다!");
-                    hcz_ventilation();
-                }
-            });
+        if (hasFlag("power_off")) {
+            text += "<br>전력이 차단되어 방폭문이 반쯤 열려 있습니다! 틈으로 비집고 들어갈 수 있습니다.";
+            updateScreen(text, [{ text: "틈 사이로 비집고 들어간다.", action: hcz_hub }]);
+        } else if (hasItem("3등급 키카드") || hasItem("4등급 키카드")) {
+            text += "<br>소지하신 고등급 키카드로 문을 열 수 있습니다.";
+            updateScreen(text, [{ text: "카드를 긁고 진입한다.", action: hcz_hub }]);
+        } else {
+            text += "<br>단말기에 [3등급 이상 권한 필요]라고 뜹니다. 키카드를 업그레이드하거나, 다른 방법을 찾아야 합니다.";
+            updateScreen(text, [{ text: "저위험군 구역으로 돌아간다.", action: lcz_hub }]);
         }
-        updateScreen(text, choices);
     }
 
-    // --- 시나리오: 출입 구역 (Entrance Zone) 및 엔딩 ---
-
-    function ez_arrival() {
-        const text = "📍 <b>출입 구역 (지상 출구 근처)</b><br><br>드디어 시설의 끝자락입니다. 세련된 타일 바닥과 화분들이 보입니다.<br>이곳에는 지상으로 나가는 두 개의 메인 게이트가 있습니다.<br><br><i>안내 방송: '알파 탄두 기폭까지 3분 남았습니다. 모든 인원은 대피하십시오.'</i>";
+    function hcz_hub() {
+        let text = "📍 <b>중위험군 격리구역 (HCZ) 내부</b><br><br>벽이 부식되어 끈적한 검은 액체가 흐르고 있습니다. <b>[SCP-106]</b>의 흔적입니다.<br>여기서부터는 곧장 출입 구역(지상 게이트)으로 가는 엘리베이터가 있습니다.";
         updateScreen(text, [
-            { text: "게이트 A로 향한다.", action: gate_a },
-            { text: "게이트 B로 향한다.", action: gate_b }
+            { text: "검은 액체를 피해 조심스럽게 엘리베이터로 간다.", action: ez_hub },
+            { text: "검은 액체가 나오는 구멍(포켓 디멘션)을 호기심에 들여다본다.", action: pocket_dimension }
+        ]);
+    }
+
+    function pocket_dimension() {
+        if (hasItem("4등급 키카드")) {
+            gameOver("당신이 구멍을 들여다보는 순간, 부패한 손이 튀어나와 당신을 어둠 속으로 끌고 갔습니다.<br>당신은 고통스러운 이면의 차원에서 영원히 헤매게 되었습니다.<br><br><b>[배드 엔딩: 포켓 디멘션의 희생양]</b>");
+        } else {
+            gameOver("구멍에 가까이 가자마자 중력이 역전되며 어둠 속으로 빨려 들어갔습니다.<br><b>[배드 엔딩: 호기심이 고양이를 죽이다]</b>");
+        }
+    }
+
+    // ==========================================
+    // 루트 4: 출입 구역 (EZ) 및 지상 탈출
+    // ==========================================
+
+    function ez_hub() {
+        let text = "📍 <b>출입 구역 (Entrance Zone)</b><br><br>로비가 엉망진창입니다. 방송이 울려 퍼집니다.<br><i>'알파 탄두 기폭 1분 전. 남은 인원 생존 보장 불가.'</i><br>지상으로 나가는 두 개의 게이트가 있습니다.";
+        updateScreen(text, [
+            { text: "게이트 A로 달린다. (혼돈의 반란 점령지)", action: gate_a },
+            { text: "게이트 B로 달린다. (재단 MTF 점령지)", action: gate_b }
         ]);
     }
 
     function gate_a() {
-        const text = "📍 <b>게이트 A</b><br><br>거대한 셔터문 앞에 혼돈의 반란(Chaos Insurgency) 무장 병력들이 진을 치고 있습니다.<br>그들은 시설 내의 모든 생존자를 수색하고 있습니다. 당신이 입고 있는 주황색 D계급 죄수복을 보면 어떻게 반응할지 모릅니다.";
-        updateScreen(text, [
-            { text: "두 손을 들고 무장 병력에게 걸어간다.", action: () => gameWin("무장 병력은 당신의 D계급 복장을 보고 총을 내렸습니다.<br><i>'생존자가 있군. 차에 태워라, 나중에 쓸모가 있을지 모르니.'</i><br>자유의 몸이 되지는 못했지만, 적어도 무너지는 시설 속에서 목숨은 건졌습니다.<br><br><b>[엔딩 1: 혼돈의 반란으로 포획됨]</b>") },
-            { text: "들키지 않게 다른 길을 찾아 게이트 B로 돌아간다.", action: ez_arrival }
-        ]);
+        if (hasItem("4등급 키카드")) {
+            gameWin("게이트를 나서자 무장한 '혼돈의 반란' 요원들이 총을 겨눕니다.<br>당신이 고위급의 상징인 4등급 키카드를 쥐고 있는 것을 본 그들은 당신을 주요 정보원으로 여겨 헬기에 태웠습니다.<br><br><b>[엔딩 A: 적과의 동침]</b><br>재단을 붕괴시킬 중요한 장기말이 되어 살아남았습니다.");
+        } else {
+            gameWin("게이트를 나서자 무장한 '혼돈의 반란' 요원들이 총을 겨눕니다.<br>당신의 오렌지색 D계급 복장을 본 그들은 당신을 '소모품' 생존자로 보고 임시 수용 차량에 밀어넣었습니다.<br><br><b>[엔딩 B: 혼돈 속으로]</b><br>자유는 없지만, 시설 폭발에서는 살아남았습니다.");
+        }
     }
 
     function gate_b() {
-        const text = "📍 <b>게이트 B</b><br><br>이곳은 시설의 주요 인원들이 대피하는 곳입니다.<br>하지만 이미 재단의 특수 기동대(MTF) 헬리콥터가 상공을 맴돌며 탈출하는 모든 위험 요소를 저격하고 있습니다.";
-        updateScreen(text, [
-            { text: "미친 척하고 게이트를 향해 전력 질주한다.", action: () => gameOver("당신이 게이트 밖으로 나가는 순간, 상공의 헬리콥터에서 발사된 기관총 세례가 당신을 덮쳤습니다.<br><i>'미확인 인원 사살 완료. 현 위치를 사수한다.'</i>") },
-            { text: "다시 안으로 돌아가 게이트 A로 간다.", action: ez_arrival }
-        ]);
+        gameOver("게이트 B의 문이 열리자마자, 상공에 떠 있던 재단 특수 기동대(MTF) 헬리콥터가 기관총을 쏟아냅니다.<br><i>'격리 파기 개체 및 미확인 인원 사살 완료.'</i><br><br><b>[배드 엔딩: 무자비한 규정]</b>");
     }
 
+    function ending_sewer() {
+        gameWin("지렛대로 철창을 뜯어내고 오수관을 타고 미친듯이 미끄러져 내려갔습니다.<br>역겨운 냄새가 진동하지만, 멀리서 숲속의 맑은 공기가 느껴집니다.<br>등 뒤로 땅이 흔들리며 제19기지가 핵폭발로 지하에 묻히는 소리가 들립니다.<br><br><b>[진 엔딩: 아무도 모르는 탈출]</b><br>재단도, 반란군도 당신의 생존을 모릅니다. 당신은 완전한 자유를 얻었습니다.");
+    }
+
+    // ==========================================
+    // 게임 오버 및 클리어 처리
+    // ==========================================
+
     function gameOver(reason) {
-        document.getElementById("hp-display").innerText = gameState.hp;
-        const text = `<span class="danger">💀 <b>GAME OVER</b> 💀</span><br><br>${reason}`;
-        updateScreen(text, [{ text: "마지막 체크포인트부터 다시 시도 (처음으로)", action: startIntro }]);
+        document.getElementById("hp-display").innerText = "0";
+        document.getElementById("hp-display").className = "danger";
+        const text = `<span class="danger">💀 <b>SYSTEM DOWN</b> 💀</span><br><br>${reason}`;
+        updateScreen(text, [{ text: "루프 재시작 (처음으로)", action: startIntro }]);
     }
 
     function gameWin(endingText) {
-        const text = `🎉 <b>시설 탈출 성공!</b> 🎉<br><br>${endingText}`;
-        updateScreen(text, [{ text: "다른 엔딩 찾아보기 (처음으로)", action: startIntro }]);
+        const text = `🎉 <b>탈출 시퀀스 완료</b> 🎉<br><br>${endingText}`;
+        updateScreen(text, [{ text: "다른 분기점 찾아보기 (처음으로)", action: startIntro }]);
     }
 
-    // 게임 시작
     window.onload = startIntro;
 </script>
 
