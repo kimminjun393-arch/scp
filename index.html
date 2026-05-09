@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCP 탈출 텍스트 어드벤처</title>
+    <style>
+        body {
+            background-color: #0c0c0c;
+            color: #33ff33; /* 해커/터미널 느낌의 초록색 글씨 */
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        #game-container {
+            width: 100%;
+            max-width: 700px;
+            background-color: #000;
+            border: 1px solid #33ff33;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px #33ff33;
+        }
+        #story-text {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            min-height: 150px;
+        }
+        .choice-btn {
+            display: block;
+            width: 100%;
+            background-color: #111;
+            color: #33ff33;
+            border: 1px solid #33ff33;
+            padding: 15px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            cursor: pointer;
+            text-align: left;
+            transition: 0.2s;
+        }
+        .choice-btn:hover {
+            background-color: #33ff33;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="story-text">시스템 부팅 중...</div>
+    <div id="choices-area"></div>
+</div>
+
+<script>
+    // 플레이어 데이터
+    let inventory = [];
+
+    // 화면 업데이트 함수
+    function updateScreen(text, choices) {
+        document.getElementById("story-text").innerHTML = text;
+        const choicesArea = document.getElementById("choices-area");
+        choicesArea.innerHTML = ""; // 기존 버튼 지우기
+
+        choices.forEach(choice => {
+            const btn = document.createElement("button");
+            btn.className = "choice-btn";
+            btn.innerText = choice.text;
+            btn.onclick = choice.action;
+            choicesArea.appendChild(btn);
+        });
+    }
+
+    // --- 게임 시나리오 함수들 ---
+    function startIntro() {
+        inventory = []; // 게임 시작 시 인벤토리 초기화
+        const text = "⚠️ <b>[시스템 경고] 제19기지 다중 격리 파기 발생.</b><br><br>당신은 D계급 인원입니다. 철문이 부서지는 소리가 들렸고, 감방 문이 열려 있습니다. 살아남으려면 시설을 빠져나가야 합니다.";
+        updateScreen(text, [
+            { text: "감방 밖 복도로 나간다.", action: roomDClass }
+        ]);
+    }
+
+    function roomDClass() {
+        const text = "📍 <b>현재 위치: D계급 감방 복도</b><br><br>어둡고 음산합니다. 바닥에 피자국이 이어져 있습니다.";
+        updateScreen(text, [
+            { text: "1. 피자국을 따라 '관리실'로 간다.", action: roomAdmin },
+            { text: "2. '제1격리구역'으로 간다.", action: roomContainment1 }
+        ]);
+    }
+
+    function roomAdmin() {
+        let text = "📍 <b>현재 위치: 관리실</b><br><br>";
+        let choices = [{ text: "복도로 돌아간다.", action: roomDClass }];
+
+        if (!inventory.includes("3등급 키카드")) {
+            text += "책상 위에 죽은 연구원의 신분증이 떨어져 있습니다.";
+            choices.unshift({ 
+                text: "신분증을 챙긴다.", 
+                action: () => {
+                    inventory.push("3등급 키카드");
+                    alert("[+] '3등급 키카드'를 획득했습니다!");
+                    roomAdmin(); // 화면 새로고침
+                }
+            });
+        } else {
+            text += "더 이상 이곳에서 챙길 것은 없어 보입니다.";
+        }
+        updateScreen(text, choices);
+    }
+
+    function roomContainment1() {
+        const text = "📍 <b>현재 위치: 제1격리구역</b><br><br>문을 열자마자 콘크리트로 된 기괴한 조각상, <b>[SCP-173]</b>이 당신을 바라보고 있습니다!<br>조명이 깜빡입니다. 조명이 꺼지기 전에 행동해야 합니다!";
+        updateScreen(text, [
+            { text: "1. 눈을 부릅뜨고 시선을 고정한 채 뒷걸음질로 빠져나간다.", action: roomArmory },
+            { text: "2. 뒤돌아서 전력으로 도망친다.", action: () => gameOver("뒤를 돌아 뛰려는 순간, '콰직!' 하는 소리와 함께 목이 꺾였습니다.<br>SCP-173은 시선이 끊기면 순식간에 다가옵니다.") }
+        ]);
+    }
+
+    function roomArmory() {
+        const text = "📍 <b>현재 위치: 무기고 앞 복도</b><br><br>방을 무사히 빠져나왔습니다.<br>하지만 앞쪽에서 검은 망토를 두르고 새 부리 가면을 쓴 자, <b>[SCP-049]</b>가 다가옵니다.<br><i>'당신에게서... 역병의 냄새가 나는군요. 치료해 드리겠습니다.'</i>";
+        updateScreen(text, [
+            { text: "1. 근처에 있는 쇠파이프를 다른 곳으로 집어 던진다.", action: roomGateA },
+            { text: "2. 바닥에 납작 엎드려 죽은 척한다.", action: () => gameOver("SCP-049가 당신을 내려다보며 손을 뻗습니다. 그의 손이 닿자마자 싸늘하게 식어갔습니다...") }
+        ]);
+    }
+
+    function roomGateA() {
+        let text = "📍 <b>현재 위치: 게이트 A (출구)</b><br><br>쇠파이프 소리에 SCP-049가 고개를 돌린 틈을 타 도망쳤습니다!<br>거대한 방폭문이 탈출을 막고 있습니다. 카드 리더기가 붉은 빛을 냅니다.";
+        
+        if (inventory.includes("3등급 키카드")) {
+            updateScreen(text, [
+                { text: "인벤토리에서 '3등급 키카드'를 꺼내 리더기에 긁는다.", action: gameWin }
+            ]);
+        } else {
+            updateScreen(text, [
+                { text: "문을 강제로 열어본다.", action: () => gameOver("단말기에 [3등급 권한 필요]라고 적혀 있습니다. 문을 열 수 없습니다.<br>어디선가 끔찍한 괴성이 들려옵니다... 결국 시설 안에 갇히고 말았습니다.") }
+            ]);
+        }
+    }
+
+    function gameOver(reason) {
+        const text = `💀 <b>게임 오버</b> 💀<br><br>${reason}`;
+        updateScreen(text, [
+            { text: "처음부터 다시 시작하기", action: startIntro }
+        ]);
+    }
+
+    function gameWin() {
+        const text = "🎉 <b>탈출 성공!</b> 🎉<br><br><i>삐빅- [접근 승인]</i><br>거대한 방폭문이 열리며 바깥의 햇살이 들어옵니다. 당신은 무사히 살아남았습니다!";
+        updateScreen(text, [
+            { text: "다시 플레이하기", action: startIntro }
+        ]);
+    }
+
+    // 게임 시작
+    window.onload = startIntro;
+</script>
+
+</body>
+</html>
